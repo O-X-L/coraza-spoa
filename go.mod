@@ -1,6 +1,6 @@
 module github.com/corazawaf/coraza-spoa
 
-go 1.23.1
+go 1.22.3
 
 require (
 	github.com/corazawaf/coraza-coreruleset v0.0.0-20240226094324-415b1017abdc
