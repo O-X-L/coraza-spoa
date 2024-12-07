@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/netip"
@@ -26,6 +27,7 @@ type AppConfig struct {
 	ResponseCheck  bool
 	Logger         zerolog.Logger
 	TransactionTTL time.Duration
+	LogFormat      string
 }
 
 type Application struct {
@@ -51,6 +53,26 @@ type applicationRequest struct {
 	Version string
 	Headers []byte
 	Body    []byte
+}
+
+type errorLogJSON struct {
+	Client     string   `json:"client"`
+	Server     string   `json:"server"`
+	Msg        string   `json:"msg"`
+	Data       string   `json:"data"`
+	URI        string   `json:"uri"`
+	File       string   `json:"file"`
+	Line       int      `json:"line"`
+	RuleID     int      `json:"rule_id"`
+	Revision   string   `json:"revision"`
+	SeverityID int      `json:"severity_id"`
+	Severity   string   `json:"severity"`
+	Version    string   `json:"version"`
+	Maturity   int      `json:"maturity"`
+	Accuracy   int      `json:"accuracy"`
+	Disruptive bool     `json:"disruptive"`
+	Tags       []string `json:"tags"`
+	UniqueID   string   `json:"unique_id"`
 }
 
 func (a *Application) HandleRequest(ctx context.Context, writer *encoding.ActionWriter, message *encoding.Message) (err error) {
@@ -359,6 +381,30 @@ func (a AppConfig) NewApplication() (*Application, error) {
 	return &app, nil
 }
 
+func logCallbackJSON(mr types.MatchedRule) []byte {
+	r := mr.Rule()
+	j, _ := json.Marshal(errorLogJSON{
+		File:       r.File(),
+		Line:       r.Line(),
+		RuleID:     r.ID(),
+		Revision:   r.Revision(),
+		Severity:   r.Severity().String(),
+		SeverityID: r.Severity().Int(),
+		Version:    r.Version(),
+		Maturity:   r.Maturity(),
+		Accuracy:   r.Accuracy(),
+		Tags:       r.Tags(),
+		Msg:        mr.Message(),
+		Data:       mr.Data(),
+		Client:     mr.ClientIPAddress(),
+		Server:     mr.ServerIPAddress(),
+		Disruptive: mr.Disruptive(),
+		URI:        mr.URI(),
+		UniqueID:   mr.TransactionID(),
+	})
+	return j
+}
+
 func (a *Application) logCallback(mr types.MatchedRule) {
 	var l *zerolog.Event
 
@@ -373,7 +419,12 @@ func (a *Application) logCallback(mr types.MatchedRule) {
 	default:
 		l = a.Logger.Error()
 	}
-	l.Msg(mr.ErrorLog())
+	if a.LogFormat == "json" {
+		l.RawJSON("match", logCallbackJSON(mr))
+		l.Send()
+	} else {
+		l.Msg(mr.ErrorLog())
+	}
 }
 
 type ErrInterrupted struct {
