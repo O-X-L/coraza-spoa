@@ -196,7 +196,7 @@ func (a *Application) HandleRequest(ctx context.Context, writer *encoding.Action
 		tx.ProcessURI(url.String(), req.Method, "HTTP/"+req.Version)
 	}
 
-	if err := readHeaders(req.Headers, tx.AddRequestHeader); err != nil {
+	if err := readHeaders(req.Headers, tx.AddRequestHeader, tx.SetServerName); err != nil {
 		return fmt.Errorf("reading headers: %v", err)
 	}
 
@@ -221,7 +221,7 @@ func (a *Application) HandleRequest(ctx context.Context, writer *encoding.Action
 	return nil
 }
 
-func readHeaders(headers []byte, callback func(key string, value string)) error {
+func readHeaders(headers []byte, hdrCallback func(key string, value string), hostCallback func(value string)) error {
 	s := bufio.NewScanner(bytes.NewReader(headers))
 	for s.Scan() {
 		line := bytes.TrimSpace(s.Bytes())
@@ -236,7 +236,11 @@ func readHeaders(headers []byte, callback func(key string, value string)) error 
 
 		key, value := bytes.TrimSpace(kv[0]), bytes.TrimSpace(kv[1])
 
-		callback(string(key), string(value))
+		if hostCallback != nil && string(key) == "host" {
+			hostCallback(string(value))
+		}
+
+		hdrCallback(string(key), string(value))
 	}
 
 	return nil
@@ -324,7 +328,7 @@ func (a *Application) HandleResponse(ctx context.Context, writer *encoding.Actio
 		goto exit
 	}
 
-	if err := readHeaders(res.Headers, tx.AddResponseHeader); err != nil {
+	if err := readHeaders(res.Headers, tx.AddResponseHeader, nil); err != nil {
 		return fmt.Errorf("reading headers: %v", err)
 	}
 

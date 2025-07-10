@@ -5,15 +5,23 @@ on:
       - main
     tags:
       - "*"
-    paths-ignore:
-      - "**/*.md"
-      - "LICENSE"
+    paths:
+      # build a semver tagged image after release-please pr merge
+      - CHANGELOG.md
+      # build a snapshot tagged image after any app change
+      - main.go
+      - config.go
+      - go.sum
+      - go.mod
+      - internal/*
+      - example/Dockerfile
+      - example/coraza-spoa.yaml
   pull_request:
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
